@@ -51,11 +51,25 @@ struct Subscription: Identifiable, Codable, Hashable {
     }
 }
 
-enum BillingCycle: String, CaseIterable, Codable, Identifiable {
+enum BillingCycle: Codable, Hashable, Identifiable {
     case monthly
     case yearly
+    case custom(months: Int)
 
-    var id: String { rawValue }
+    static let standardCycles: [BillingCycle] = [.monthly, .yearly]
+    static let defaultCustomMonths = 3
+    static let customMonthRange = 1...120
+
+    var id: String {
+        switch self {
+        case .monthly:
+            "monthly"
+        case .yearly:
+            "yearly"
+        case let .custom(months):
+            "custom:\(Self.normalizedCustomMonths(months))"
+        }
+    }
 
     var monthsPerCycle: Double {
         switch self {
@@ -63,7 +77,14 @@ enum BillingCycle: String, CaseIterable, Codable, Identifiable {
             1
         case .yearly:
             12
+        case let .custom(months):
+            Double(Self.normalizedCustomMonths(months))
         }
+    }
+
+    var customMonths: Int? {
+        guard case let .custom(months) = self else { return nil }
+        return Self.normalizedCustomMonths(months)
     }
 
     func monthlyAmount(for price: Double) -> Double {
@@ -80,6 +101,8 @@ enum BillingCycle: String, CaseIterable, Codable, Identifiable {
             "月額"
         case .yearly:
             "年額"
+        case let .custom(months):
+            "\(Self.normalizedCustomMonths(months))ヶ月ごと"
         }
     }
 
@@ -89,6 +112,60 @@ enum BillingCycle: String, CaseIterable, Codable, Identifiable {
             "月"
         case .yearly:
             "年"
+        case let .custom(months):
+            "\(Self.normalizedCustomMonths(months))ヶ月"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+
+        switch value {
+        case "monthly":
+            self = .monthly
+        case "yearly":
+            self = .yearly
+        default:
+            if value.hasPrefix("custom:"),
+               let months = Int(value.replacingOccurrences(of: "custom:", with: "")) {
+                self = .custom(months: Self.normalizedCustomMonths(months))
+            } else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Unknown billing cycle: \(value)"
+                )
+            }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(id)
+    }
+
+    private static func normalizedCustomMonths(_ months: Int) -> Int {
+        min(max(months, customMonthRange.lowerBound), customMonthRange.upperBound)
+    }
+}
+
+enum BillingCyclePreset: Hashable, Identifiable {
+    case monthly
+    case yearly
+    case custom
+
+    var id: Self { self }
+}
+
+extension BillingCycle {
+    var preset: BillingCyclePreset {
+        switch self {
+        case .monthly:
+            .monthly
+        case .yearly:
+            .yearly
+        case .custom:
+            .custom
         }
     }
 }

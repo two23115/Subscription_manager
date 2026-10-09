@@ -11,6 +11,7 @@ import Testing
 
 struct SubscriptionManagerTests {
 
+    @MainActor
     @Test func customBillingCycleCalculatesEquivalentAmounts() {
         let subscription = Subscription(
             price: 3000,
@@ -23,6 +24,7 @@ struct SubscriptionManagerTests {
         #expect(subscription.billingCycle.shortLabel == "3ヶ月")
     }
 
+    @MainActor
     @Test func billingCycleDecodesExistingStoredValues() throws {
         let decoder = JSONDecoder()
 
@@ -33,6 +35,7 @@ struct SubscriptionManagerTests {
         #expect(yearly == .yearly)
     }
 
+    @MainActor
     @Test func customBillingCycleRoundTripsThroughCodable() throws {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()

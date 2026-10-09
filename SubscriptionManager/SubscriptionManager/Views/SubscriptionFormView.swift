@@ -5,6 +5,8 @@ struct SubscriptionFormView: View {
 
     @State private var draft: Subscription
     @State private var hasCancelDeadline: Bool
+    @State private var billingCyclePreset: BillingCyclePreset
+    @State private var customBillingCycleMonths: Int
     @State private var validationErrors: [SubscriptionValidationError] = []
 
     private let onSave: (Subscription) -> Void
@@ -17,6 +19,8 @@ struct SubscriptionFormView: View {
         let initialDraft = subscription ?? Subscription(notificationType: defaultNotificationType)
         _draft = State(initialValue: initialDraft)
         _hasCancelDeadline = State(initialValue: initialDraft.cancelDeadlineDate != nil)
+        _billingCyclePreset = State(initialValue: initialDraft.billingCycle.preset)
+        _customBillingCycleMonths = State(initialValue: initialDraft.billingCycle.customMonths ?? BillingCycle.defaultCustomMonths)
         self.onSave = onSave
     }
 
@@ -28,10 +32,17 @@ struct SubscriptionFormView: View {
                     #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
-                Picker("支払い周期", selection: $draft.billingCycle) {
-                    ForEach(BillingCycle.allCases) { cycle in
-                        Text(cycle.label).tag(cycle)
-                    }
+                Picker("支払い周期", selection: $billingCyclePreset) {
+                    Text(BillingCycle.monthly.label).tag(BillingCyclePreset.monthly)
+                    Text(BillingCycle.yearly.label).tag(BillingCyclePreset.yearly)
+                    Text("カスタム").tag(BillingCyclePreset.custom)
+                }
+                if billingCyclePreset == .custom {
+                    Stepper(
+                        "\(customBillingCycleMonths)ヶ月ごと",
+                        value: $customBillingCycleMonths,
+                        in: BillingCycle.customMonthRange
+                    )
                 }
                 Picker("ステータス", selection: $draft.status) {
                     ForEach(SubscriptionStatus.allCases) { status in
@@ -96,6 +107,12 @@ struct SubscriptionFormView: View {
                 draft.cancelDeadlineDate = nil
             }
         }
+        .onChange(of: billingCyclePreset) { _, _ in
+            updateDraftBillingCycle()
+        }
+        .onChange(of: customBillingCycleMonths) { _, _ in
+            updateDraftBillingCycle()
+        }
     }
 
     private var cancelDeadlineBinding: Binding<Date> {
@@ -106,7 +123,20 @@ struct SubscriptionFormView: View {
         }
     }
 
+    private func updateDraftBillingCycle() {
+        switch billingCyclePreset {
+        case .monthly:
+            draft.billingCycle = .monthly
+        case .yearly:
+            draft.billingCycle = .yearly
+        case .custom:
+            draft.billingCycle = .custom(months: customBillingCycleMonths)
+        }
+    }
+
     private func save() {
+        updateDraftBillingCycle()
+
         if !hasCancelDeadline {
             draft.cancelDeadlineDate = nil
         }
